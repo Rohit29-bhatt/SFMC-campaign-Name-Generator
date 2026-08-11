@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SFMC Campaign Naming Generator</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#f5f7fb;color:#172033}
+header{background:#123b63;color:white;padding:24px}
+main{max-width:1200px;margin:20px auto;padding:0 16px}
+.card{background:white;border:1px solid #d0d5dd;border-radius:12px;padding:20px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+label{font-weight:600;font-size:13px;display:block;margin-bottom:5px}
+input,select{width:100%;padding:10px;border:1px solid #bfc5cc;border-radius:7px;box-sizing:border-box}
+button{padding:10px 14px;border:0;border-radius:7px;cursor:pointer;font-weight:600;margin:12px 6px 0 0}
+.primary{background:#155eef;color:white}.secondary{background:#eaf2ff}.danger{background:#fee4e2}.copyBtn{background:#eaf2ff;color:#175cd3;margin:0;padding:8px 11px}
+.nameSection{border:1px solid #d0d5dd;border-radius:10px;margin:12px 0;overflow:hidden;background:#fff}
+.nameSectionHeader{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#f8fafc;cursor:pointer}
+.nameSectionHeader h3{margin:0;font-size:15px}
+.sectionActions{display:flex;gap:7px}
+.sectionToggle{background:#eef2f6;color:#344054;padding:6px 9px;margin:0}
+.copySection{background:#eaf2ff;color:#175cd3;padding:6px 9px;margin:0}
+.sectionBody{padding:0 14px}
+.output{display:grid;grid-template-columns:230px 1fr auto;gap:8px;align-items:center;border-bottom:1px solid #eee;padding:9px 0}
+.name{font-family:Consolas,monospace;word-break:break-all;background:#f8fafc;padding:8px;border-radius:5px}
+.badge{display:inline-block;background:#eef4ff;color:#175cd3;padding:6px 9px;border-radius:20px;margin:3px;font-size:13px}
+.table{overflow:auto;max-height:500px}.table table{min-width:2700px}.logCheck{width:16px;height:16px}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:9px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}th{background:#f9fafb}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.output{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>SFMC Campaign Naming Generator</h1><div>Generate Email, Journey, DE, Automation and Campaign Shell names.</div></header>
+<main>
+<section class="card">
+<h2>Campaign Inputs</h2>
+<div class="grid">
+<div><label>Country</label><select id="country"><option>US</option><option>Canada</option></select></div>
+<div><label>Brand Name</label><input id="brand" placeholder="e.g. Medtronic"></div>
+<div><label>Campaign Name</label><input id="campaign" placeholder="e.g. Test New Campaign"></div>
+<div><label>A/B Test Required?</label><select id="ab"><option>No</option><option>Yes</option></select></div>
+<div><label>Reminder Email Present?</label><select id="rem"><option>No</option><option>Yes</option></select></div>
+<div><label>PRT Number</label><input id="prt" placeholder="PP-RA-0092-1"></div>
+</div>
+<button class="primary" onclick="generate()">Generate Names</button>
+<button class="secondary" onclick="copyAll()">Copy All</button>
+<button class="danger" onclick="clearForm()">Clear</button>
+<p id="status"></p>
+</section>
+
+<section class="card"><h2>Identifier</h2><div id="meta"></div></section>
+<section class="card"><h2>Generated Names</h2><div id="outputs">Enter details and click Generate Names.</div></section>
+
+<section class="card">
+<h2>Campaign Log</h2>
+<p>A campaign is saved to the shared database when you copy an individual name, copy a section, or use Copy All. Anyone with the shared webpage can use the same Campaign Log.</p>
+<button class="primary" onclick="saveCampaign()">Save Current Campaign</button>
+<button class="secondary" onclick="exportCSV()">Export CSV</button>
+<div class="actions">
+<button class="danger" onclick="deleteSelected()">Delete Selected</button>
+<button class="secondary" onclick="selectAllLogs()">Select All</button>
+<button class="secondary" onclick="deselectAllLogs()">Deselect All</button>
+</div>
+<div class="table"><table><thead><tr>
+<th><input type="checkbox" id="selectAllBox" onchange="toggleAllLogs(this.checked)"></th>
+<th>#</th><th>Country</th><th>Brand</th><th>Campaign</th><th>Year</th><th>Unique ID</th><th>Base Identifier</th>
+<th>A/B</th><th>Reminder</th><th>PRT</th><th>PRT Digits</th>
+<th>Email Folder</th><th>Email Initial</th><th>Email Reminder</th><th>Email Initial A</th><th>Email Initial B</th><th>Email Reminder A</th><th>Email Reminder B</th>
+<th>Journey Folder</th><th>Journey Name</th><th>DE Folder</th><th>DE01 Entry</th><th>DE02 Exclusion</th><th>DE03 Active</th><th>DE04 SeedList</th><th>DE05 Raw_Data</th>
+<th>Automation Folder</th><th>Automation Name</th><th>AT01 Entry</th><th>AT01 Exclusion</th><th>AT01 Active</th><th>AT01 SeedList</th><th>AT01 AB Path</th><th>Campaign Shell Name</th>
+</tr></thead><tbody id="log"></tbody></table></div>
+</section>
+</main>
+
+<script>
+const SUPABASE_URL = "https://pzhwlvzkmpfnjcgdrpss.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_AKLvLUXlYWlCmfb9lr-KQQ__rw08NhQ";
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+const KEY="sfmc_campaign_log_v2"; let current=null;
+const $=id=>document.getElementById(id);
+let remoteLog = [];
+function data(){ return remoteLog; }
+function store(x){ remoteLog = x; }
+function code(c){return c==="Canada"?"CA":"US"}
+function brandCode(b){return b.trim().slice(0,3).toUpperCase()}
+function campaignName(x){return x.trim().replace(/\s+/g,"_")}
+function digits(x){return x.replace(/\D/g,"")}
+function nextId(country,brand,year){
+ let n=0,bc=brandCode(brand);
+ data().forEach(x=>{
+   if(x.country===country && x.brand_code===bc && x.campaign_year===year){
+     n=Math.max(n,parseInt(String(x.unique_identifier||"").replace("a",""))||0);
+   }
+ });
+ return String(n+1).padStart(3,"0")+"a";
+}
+function add(arr,label,value){arr.push([label,value])}
+function generate(){
+ let country=$("country").value, brand=$("brand").value.trim(), camp=$("campaign").value.trim(), ab=$("ab").value, rem=$("rem").value, prt=$("prt").value.trim();
+ if(!brand||!camp||!prt){$("status").textContent="Please fill Brand Name, Campaign Name and PRT Number.";return}
+ let year=new Date().getFullYear(), bc=brandCode(brand), id=nextId(country,brand,year), base=code(country)+"_"+bc+"_"+year+"_"+id, cn=campaignName(camp), pd=digits(prt), names=[];
+ add(names,"Email Folder",base+"_EM01");
+ if(ab==="No") add(names,"Email Initial",base+"_EM01_Initial_"+pd+"_"+cn);
+ if(ab==="No"&&rem==="Yes") add(names,"Email Reminder",base+"_EM01_Reminder_"+pd+"_"+cn);
+ if(ab==="Yes"){
+   add(names,"Email Initial A",base+"_EM01A_Initial_"+pd+"_"+cn);
+   add(names,"Email Initial B",base+"_EM01B_Initial_"+pd+"_"+cn);
+   if(rem==="Yes"){
+     add(names,"Email Reminder A",base+"_EM01A_Reminder_"+cn);
+     add(names,"Email Reminder B",base+"_EM01B_Reminder_"+cn);
+   }
+ }
+ add(names,"Journey Folder",base); add(names,"Journey Name",base+"_"+cn);
+ add(names,"DE Folder",base);
+ ["DE01_Entry","DE02_Exclusion","DE03_Active","DE04_SeedList","DE05_Raw_Data"].forEach(s=>add(names,s,base+"_"+s));
+ add(names,"Automation Folder",base); add(names,"Automation Name",base+"_AT01");
+ ["AT01_Entry","AT01_Exclusion","AT01_Active","AT01_SeedList"].forEach(s=>add(names,s,base+"_"+s));
+ if(ab==="Yes")add(names,"AT01 AB Path",base+"_AT01_AB_Path");
+ add(names,"Campaign Shell Name",cn);
+ current={country,brand,brandCode:bc,campaign:camp,campaignClean:cn,ab,reminder:rem,prt,prtDigits:pd,year,id,base,names};
+ $("meta").innerHTML='<span class="badge">Country: '+code(country)+'</span><span class="badge">Brand: '+bc+'</span><span class="badge">Year: '+year+'</span><span class="badge">Unique ID: '+id+'</span><span class="badge">PRT Digits: '+pd+'</span>';
+ const sections = {
+  "Email": ["Email Folder","Email Initial","Email Reminder","Email Initial A","Email Initial B","Email Reminder A","Email Reminder B"],
+  "Journey": ["Journey Folder","Journey Name"],
+  "Data Extensions": ["DE Folder","DE01_Entry","DE02_Exclusion","DE03_Active","DE04_SeedList","DE05_Raw_Data"],
+  "Automation": ["Automation Folder","Automation Name","AT01_Entry","AT01_Exclusion","AT01_Active","AT01_SeedList","AT01 AB Path"],
+  "Campaign Shell": ["Campaign Shell Name"]
+};
+
+const icon = {"Email":"📧","Journey":"🧭","Data Extensions":"🗄️","Automation":"⚙️","Campaign Shell":"📦"};
+
+$("outputs").innerHTML = Object.entries(sections).map(([section, labels])=>{
+  const available = labels.map(label => names.find(x=>x[0]===label)).filter(Boolean);
+  if(!available.length) return "";
+  const sectionId = "sec_"+section.replace(/[^A-Za-z0-9]/g,"_");
+  const encoded = encodeURIComponent(available.map(x=>x[1]).join("\n"));
+  return '<div class="nameSection">'+
+    '<div class="nameSectionHeader" onclick="toggleSection(\''+sectionId+'\')">'+
+      '<h3>'+icon[section]+' '+escapeHtml(section)+'</h3>'+
+      '<div class="sectionActions" onclick="event.stopPropagation()">'+
+        '<button class="copySection" data-copy="'+encoded+'" onclick="copySection(this)">Copy Section</button>'+
+        '<button class="sectionToggle" id="'+sectionId+'_btn" onclick="toggleSection(\''+sectionId+'\')">▼</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="sectionBody" id="'+sectionId+'">'+
+      available.map(x=>'<div class="output"><b>'+escapeHtml(x[0])+'</b><span class="name">'+escapeHtml(x[1])+'</span><button class="copyBtn" data-copy="'+encodeURIComponent(x[1])+'" onclick="copySingle(this)">Copy</button></div>').join("")+
+    '</div>'+
+  '</div>';
+}).join("");
+
+$("status").textContent="Names generated. Copy any name or section to save this campaign to Campaign Log.";
+}
+async function saveCurrentCampaign(){
+  if(!current){
+    $("status").textContent="Generate names first.";
+    return false;
+  }
+
+  const duplicate = remoteLog.some(x =>
+    x.base_identifier === current.base &&
+    x.campaign_name === current.campaign &&
+    x.prt_number === current.prt
+  );
+  if(duplicate) return true;
+
+  const n = Object.fromEntries(current.names || []);
+
+  $("status").textContent="Saving campaign to shared log...";
+
+  const { data: row, error } = await sb.rpc("save_campaign", {
+    p_country: current.country,
+    p_brand_name: current.brand,
+    p_brand_code: current.brandCode,
+    p_campaign_name: current.campaign,
+    p_campaign_name_clean: current.campaignClean,
+    p_campaign_year: current.year,
+    p_ab_test: current.ab === "Yes",
+    p_reminder: current.reminder === "Yes",
+    p_prt_number: current.prt,
+    p_prt_digits: current.prtDigits,
+
+    p_email_folder: n["Email Folder"] || null,
+    p_email_initial: n["Email Initial"] || null,
+    p_email_reminder: n["Email Reminder"] || null,
+    p_email_initial_a: n["Email Initial A"] || null,
+    p_email_initial_b: n["Email Initial B"] || null,
+    p_email_reminder_a: n["Email Reminder A"] || null,
+    p_email_reminder_b: n["Email Reminder B"] || null,
+
+    p_journey_folder: n["Journey Folder"] || null,
+    p_journey_name: n["Journey Name"] || null,
+
+    p_de_folder: n["DE Folder"] || null,
+    p_de01_entry: n["DE01_Entry"] || null,
+    p_de02_exclusion: n["DE02_Exclusion"] || null,
+    p_de03_active: n["DE03_Active"] || null,
+    p_de04_seedlist: n["DE04_SeedList"] || null,
+    p_de05_raw_data: n["DE05_Raw_Data"] || null,
+
+    p_automation_folder: n["Automation Folder"] || null,
+    p_automation_name: n["Automation Name"] || null,
+    p_at01_entry: n["AT01_Entry"] || null,
+    p_at01_exclusion: n["AT01_Exclusion"] || null,
+    p_at01_active: n["AT01_Active"] || null,
+    p_at01_seedlist: n["AT01_SeedList"] || null,
+    p_at01_ab_path: n["AT01 AB Path"] || null,
+
+    p_campaign_shell_name: n["Campaign Shell Name"] || null
+  });
+
+  if(error){
+    console.error("save_campaign error:", error);
+    $("status").textContent="Save failed: " + error.message;
+    return false;
+  }
+
+  // The RPC returns the actual database row.
+  // Add it immediately so the user sees the saved campaign.
+  if(row){
+    const savedRow = Array.isArray(row) ? row[0] : row;
+    if(savedRow && savedRow.id){
+      remoteLog = [...remoteLog.filter(x=>x.id!==savedRow.id), savedRow]
+        .sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
+      render();
+    }
+  }
+
+  // Refresh through the SECURITY DEFINER read function.
+  const { data: rows, error: readError } = await sb.rpc("get_campaign_log");
+
+  if(!readError){
+    remoteLog = rows || [];
+    render();
+  }else{
+    console.warn("Saved successfully, but shared-log refresh failed:", readError);
+  }
+
+  return true;
+}
+async function saveCampaign(){
+  const saved = await saveCurrentCampaign();
+  if(saved) $("status").textContent="✓ Campaign saved to the shared Campaign Log.";
+}
+
+async function copySingle(btn){
+  if(!current){
+    $("status").textContent="Generate names first.";
+    return;
+  }
+
+  const saved = await saveCurrentCampaign();
+  if(!saved) return;
+
+  const text = decodeURIComponent(btn.dataset.copy);
+
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=text;
+    ta.style.position="fixed";
+    ta.style.opacity="0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+
+  const old=btn.textContent;
+  btn.textContent="✓ Copied";
+  btn.style.background="#dcfae6";
+  btn.style.color="#067647";
+  $("status").textContent="✓ Name copied and campaign saved to the shared log.";
+
+  setTimeout(()=>{
+    btn.textContent=old;
+    btn.style.background="";
+    btn.style.color="";
+  },1200);
+}
+
+async function copySection(btn){
+  if(!current){
+    $("status").textContent="Generate names first.";
+    return;
+  }
+
+  const saved = await saveCurrentCampaign();
+  if(!saved) return;
+
+  const text = decodeURIComponent(btn.dataset.copy);
+
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=text;
+    ta.style.position="fixed";
+    ta.style.opacity="0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+
+  const old=btn.textContent;
+  btn.textContent="✓ Copied";
+  btn.style.background="#dcfae6";
+  btn.style.color="#067647";
+  $("status").textContent="✓ Section copied and campaign saved to the shared log.";
+
+  setTimeout(()=>{
+    btn.textContent=old;
+    btn.style.background="";
+    btn.style.color="";
+  },1200);
+}
+
+async function copyAll(){
+  if(!current){
+    $("status").textContent="Generate names first.";
+    return;
+  }
+
+  const saved = await saveCurrentCampaign();
+  if(!saved) return;
+
+  const text=current.names.map(x=>x[1]).join("\n");
+
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=text;
+    ta.style.position="fixed";
+    ta.style.opacity="0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+
+  $("status").textContent="✓ All generated names copied and campaign saved to the shared log.";
+}
+
+
+function escapeHtml(s){
+  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+
+function clearForm(){$("brand").value="";$("campaign").value="";$("prt").value="";$("ab").value="No";$("rem").value="No";current=null;$("meta").innerHTML="";$("outputs").textContent="Enter details and click Generate Names.";$("status").textContent=""}
+function render(){
+  const d = data();
+  $("selectAllBox").checked = false;
+  $("log").innerHTML = d.map((x,i)=>{
+    const cell = v => "<td>"+(v ?? "")+"</td>";
+    return "<tr>" +
+      '<td><input type="checkbox" class="logCheck" data-id="'+x.id+'"></td>' +
+      cell(i+1)+cell(code(x.country))+cell(x.brand_name)+cell(x.campaign_name_clean)+cell(x.campaign_year)+cell(x.unique_identifier)+cell(x.base_identifier)+
+      cell(x.ab_test ? "Yes":"No")+cell(x.reminder ? "Yes":"No")+cell(x.prt_number)+cell(x.prt_digits)+
+      cell(x.email_folder)+cell(x.email_initial)+cell(x.email_reminder)+cell(x.email_initial_a)+cell(x.email_initial_b)+cell(x.email_reminder_a)+cell(x.email_reminder_b)+
+      cell(x.journey_folder)+cell(x.journey_name)+cell(x.de_folder)+
+      cell(x.de01_entry)+cell(x.de02_exclusion)+cell(x.de03_active)+cell(x.de04_seedlist)+cell(x.de05_raw_data)+
+      cell(x.automation_folder)+cell(x.automation_name)+cell(x.at01_entry)+cell(x.at01_exclusion)+
+      cell(x.at01_active)+cell(x.at01_seedlist)+cell(x.at01_ab_path)+cell(x.campaign_shell_name)+
+      "</tr>";
+  }).join("") || '<tr><td colspan="35">No saved campaigns.</td></tr>';
+}
+function toggleAllLogs(checked){
+  document.querySelectorAll(".logCheck").forEach(cb => cb.checked = checked);
+}
+
+function selectAllLogs(){
+  $("selectAllBox").checked=true;
+  toggleAllLogs(true);
+}
+
+function deselectAllLogs(){
+  $("selectAllBox").checked=false;
+  toggleAllLogs(false);
+}
+
+async function deleteSelected(){
+  const selected=[...document.querySelectorAll(".logCheck:checked")]
+    .map(cb=>Number(cb.dataset.id))
+    .filter(Number.isFinite);
+
+  if(!selected.length){
+    $("status").textContent="Select at least one campaign to delete.";
+    return;
+  }
+
+  if(!confirm("Delete "+selected.length+" selected campaign(s) from the shared log?")) return;
+
+  $("status").textContent="Deleting selected campaigns...";
+
+  const {error}=await sb.rpc("delete_campaigns", { p_ids:selected });
+
+  if(error){
+    console.error("delete_campaigns error:",error);
+    $("status").textContent="Delete failed: "+error.message;
+    return;
+  }
+
+  await loadLog();
+  $("status").textContent="✓ Selected campaign(s) deleted.";
+}
+
+function toggleAllLogs(checked){
+  document.querySelectorAll(".logCheck").forEach(cb=>cb.checked=checked);
+}
+
+function selectAllLogs(){
+  $("selectAllBox").checked=true;
+  toggleAllLogs(true);
+}
+
+function deselectAllLogs(){
+  $("selectAllBox").checked=false;
+  toggleAllLogs(false);
+}
+
+function exportCSV(){
+  const d=data();
+  if(!d.length){
+    $("status").textContent="No campaigns available to export.";
+    return;
+  }
+
+  const fields=[
+    ["ID","id"],["Country","country"],["Brand","brand_name"],["Brand Code","brand_code"],
+    ["Campaign","campaign_name"],["Campaign Clean","campaign_name_clean"],["Year","campaign_year"],
+    ["Unique ID","unique_identifier"],["Base Identifier","base_identifier"],["A/B Test","ab_test"],
+    ["Reminder","reminder"],["PRT Number","prt_number"],["PRT Digits","prt_digits"],
+    ["Email Folder","email_folder"],["Email Initial","email_initial"],["Email Reminder","email_reminder"],
+    ["Email Initial A","email_initial_a"],["Email Initial B","email_initial_b"],
+    ["Email Reminder A","email_reminder_a"],["Email Reminder B","email_reminder_b"],
+    ["Journey Folder","journey_folder"],["Journey Name","journey_name"],
+    ["DE Folder","de_folder"],["DE01 Entry","de01_entry"],["DE02 Exclusion","de02_exclusion"],
+    ["DE03 Active","de03_active"],["DE04 SeedList","de04_seedlist"],["DE05 Raw_Data","de05_raw_data"],
+    ["Automation Folder","automation_folder"],["Automation Name","automation_name"],
+    ["AT01 Entry","at01_entry"],["AT01 Exclusion","at01_exclusion"],["AT01 Active","at01_active"],
+    ["AT01 SeedList","at01_seedlist"],["AT01 AB Path","at01_ab_path"],
+    ["Campaign Shell Name","campaign_shell_name"],["Created By","created_by"],["Created At","created_at"]
+  ];
+
+  const esc=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+  const csv=[
+    fields.map(f=>esc(f[0])).join(","),
+    ...d.map(row=>fields.map(f=>esc(row[f[1]])).join(","))
+  ].join("\r\n");
+
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="SFMC_Campaign_Log_"+new Date().toISOString().slice(0,10)+".csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+  $("status").textContent="✓ Campaign Log exported to CSV.";
+}
+
+async function loadLog(){
+  $("status").textContent="Loading shared Campaign Log...";
+
+  const { data: rows, error } = await sb.rpc("get_campaign_log");
+
+  if(error){
+    console.error("get_campaign_log error:", error);
+    $("status").textContent="Campaign Log load failed: " + error.message;
+    return;
+  }
+
+  remoteLog = rows || [];
+  render();
+
+  $("status").textContent = remoteLog.length
+    ? "✓ Shared Campaign Log loaded ("+remoteLog.length+" campaign"+(remoteLog.length===1?"":"s")+")"
+    : "Shared Campaign Log is empty.";
+}
+loadLog();
+</script>
+</body>
+</html>
