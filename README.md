@@ -1,0 +1,1 @@
+# SFMC-campaign-Name-Generator
