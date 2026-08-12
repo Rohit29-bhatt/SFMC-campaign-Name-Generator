@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SFMC Campaign Naming Generator</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#f5f7fb;color:#172033}
+header{background:#123b63;color:white;padding:24px}
+main{max-width:1200px;margin:20px auto;padding:0 16px}
+.card{background:white;border:1px solid #d0d5dd;border-radius:12px;padding:20px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+label{font-weight:600;font-size:13px;display:block;margin-bottom:5px}
+input,select{width:100%;padding:10px;border:1px solid #bfc5cc;border-radius:7px;box-sizing:border-box}
+button{padding:10px 14px;border:0;border-radius:7px;cursor:pointer;font-weight:600;margin:12px 6px 0 0}
+.primary{background:#155eef;color:white}.secondary{background:#eaf2ff}.danger{background:#fee4e2}.copyBtn{background:#eaf2ff;color:#175cd3;margin:0;padding:8px 11px}
+.nameSection{border:1px solid #d0d5dd;border-radius:10px;margin:12px 0;overflow:hidden;background:#fff}
+.nameSectionHeader{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#f8fafc;cursor:pointer}
+.nameSectionHeader h3{margin:0;font-size:15px}
+.sectionActions{display:flex;gap:7px}
+.sectionToggle{background:#eef2f6;color:#344054;padding:6px 9px;margin:0}
+.copySection{background:#eaf2ff;color:#175cd3;padding:6px 9px;margin:0}
+.sectionBody{padding:0 14px}
+.output{display:grid;grid-template-columns:230px 1fr auto;gap:8px;align-items:center;border-bottom:1px solid #eee;padding:9px 0}
+.name{font-family:Consolas,monospace;word-break:break-all;background:#f8fafc;padding:8px;border-radius:5px}
+.badge{display:inline-block;background:#eef4ff;color:#175cd3;padding:6px 9px;border-radius:20px;margin:3px;font-size:13px}
+.table{overflow:auto;max-height:500px}.table table{min-width:2700px}.logCheck{width:16px;height:16px}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:9px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}th{background:#f9fafb}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.output{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>SFMC Campaign Naming Generator</h1>
+<div>Generate Email, Journey, DE, Automation and Campaign Shell names.</div>
+<div style="margin-top:10px;font-size:13px;opacity:.9">
+Created By: Rohit Bhat<br>
+Email: bhatrohit001@gmail.com
+</div>
+</header>
+<main>
+<section class="card">
+<h2>Campaign Inputs</h2>
+<div class="grid">
+<div><label>Country</label><select id="country"><option>US</option><option>Canada</option></select></div>
+<div><label>Brand Name</label><input id="brand" placeholder="e.g. Medtronic"></div>
+<div><label>Campaign Name</label><input id="campaign" placeholder="e.g. Test New Campaign"></div>
+<div><label>A/B Test Required?</label><select id="ab"><option>No</option><option>Yes</option></select></div>
+<div><label>Reminder Email Present?</label><select id="rem"><option>No</option><option>Yes</option></select></div>
+<div><label>PRT Number</label><input id="prt" placeholder="PP-RA-0092-1"></div>
+<div><label>Unique Identifier <span class="small">(enter number, e.g. 4 → 004a)</span></label><input id="uniqueId" type="number" min="1" step="1" placeholder="e.g. 4"></div>
+</div>
+<button class="primary" onclick="generate()">Generate Names</button>
+<button class="secondary" onclick="copyAll()">Copy All</button>
+<button class="danger" onclick="clearForm()">Clear</button>
+<p id="status"></p>
+</section>
+
+<section class="card"><h2>Identifier</h2><div id="meta"></div></section>
+<section class="card"><h2>Generated Names</h2><div id="outputs">Enter details and click Generate Names.</div></section>
+
+
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+function code(c){return c==="Canada"?"CA":"US"}
+function brandCode(b){return b.trim().slice(0,3).toUpperCase()}
+function campaignName(x){return x.trim().replace(/\s+/g,"_")}
+function digits(x){return x.replace(/\D/g,"")}
+function nextId(value){
+ const n=Number.parseInt(String(value).trim(),10);
+ if(!Number.isInteger(n)||n<1) return "";
+ return String(n).padStart(3,"0")+"a";
+}
+
+function add(arr,label,value){arr.push([label,value])}
+function generate(){
+ let country=$("country").value, brand=$("brand").value.trim(), camp=$("campaign").value.trim(), ab=$("ab").value, rem=$("rem").value, prt=$("prt").value.trim(), uniqueInput=$("uniqueId").value.trim();
+ if(!brand||!camp||!prt||!uniqueInput){$("status").textContent="Please fill Brand Name, Campaign Name, PRT Number and Unique Identifier.";return}
+ let year=new Date().getFullYear(), bc=brandCode(brand), id=nextId(uniqueInput);
+ if(!id){$("status").textContent="Unique Identifier must be a positive whole number, e.g. 4.";return}
+ let base=code(country)+"_"+bc+"_"+year+"_"+id, cn=campaignName(camp), pd=digits(prt), names=[];
+ add(names,"Email Folder",base+"_EM01");
+ if(ab==="No"){
+   if(rem==="Yes"){
+     add(names,"Email Initial",base+"_EM01_Initial_"+pd+"_"+cn);
+     add(names,"Email Reminder",base+"_EM01_Reminder_"+pd+"_"+cn);
+   }else{
+     add(names,"Email Initial",base+"_EM01_"+pd+"_"+cn);
+   }
+ }
+ if(ab==="Yes"){
+   if(rem==="Yes"){
+     add(names,"Email Initial A",base+"_EM01A_Initial_"+pd+"_"+cn);
+     add(names,"Email Initial B",base+"_EM01B_Initial_"+pd+"_"+cn);
+     add(names,"Email Reminder A",base+"_EM01A_Reminder_"+pd+"_"+cn);
+     add(names,"Email Reminder B",base+"_EM01B_Reminder_"+pd+"_"+cn);
+   }else{
+     add(names,"Email Initial A",base+"_EM01A_"+pd+"_"+cn);
+     add(names,"Email Initial B",base+"_EM01B_"+pd+"_"+cn);
+   }
+ }
+ add(names,"Journey Folder",base); add(names,"Journey Name",base+"_"+cn+"_Journey");
+ add(names,"DE Folder",base);
+ ["DE01_Entry","DE02_Exclusion","DE03_Active","DE04_SeedList","DE05_Raw_Data"].forEach(s=>add(names,s,base+"_"+s));
+ add(names,"Automation Folder",base); add(names,"Automation Name",base+"_AT01");
+ ["AT01_Entry","AT01_Exclusion","AT01_Active","AT01_SeedList"].forEach(s=>add(names,s,base+"_"+s));
+ if(ab==="Yes")add(names,"AT01 AB Path",base+"_AT01_AB_Path");
+ add(names,"Campaign Shell Name",cn);
+ current={country,brand,brandCode:bc,campaign:camp,campaignClean:cn,ab,reminder:rem,prt,prtDigits:pd,year,id,base,names};
+ $("meta").innerHTML='<span class="badge">Country: '+code(country)+'</span><span class="badge">Brand: '+bc+'</span><span class="badge">Year: '+year+'</span><span class="badge">Unique ID: '+id+'</span><span class="badge">PRT Digits: '+pd+'</span>';
+ const sections = {
+  "Email": ["Email Folder","Email Initial","Email Reminder","Email Initial A","Email Initial B","Email Reminder A","Email Reminder B"],
+  "Journey": ["Journey Folder","Journey Name"],
+  "Data Extensions": ["DE Folder","DE01_Entry","DE02_Exclusion","DE03_Active","DE04_SeedList","DE05_Raw_Data"],
+  "Automation": ["Automation Folder","Automation Name","AT01_Entry","AT01_Exclusion","AT01_Active","AT01_SeedList","AT01 AB Path"],
+  "Campaign Shell": ["Campaign Shell Name"]
+};
+
+const icon = {"Email":"📧","Journey":"🧭","Data Extensions":"🗄️","Automation":"⚙️","Campaign Shell":"📦"};
+
+$("outputs").innerHTML = Object.entries(sections).map(([section, labels])=>{
+  const available = labels.map(label => names.find(x=>x[0]===label)).filter(Boolean);
+  if(!available.length) return "";
+  const sectionId = "sec_"+section.replace(/[^A-Za-z0-9]/g,"_");
+  const encoded = encodeURIComponent(available.map(x=>x[1]).join("\n"));
+  return '<div class="nameSection">'+
+    '<div class="nameSectionHeader" onclick="toggleSection(\''+sectionId+'\')">'+
+      '<h3>'+icon[section]+' '+escapeHtml(section)+'</h3>'+
+      '<div class="sectionActions" onclick="event.stopPropagation()">'+
+        '<button class="copySection" data-copy="'+encoded+'" onclick="copySection(this)">Copy Section</button>'+
+        '<button class="sectionToggle" id="'+sectionId+'_btn" onclick="toggleSection(\''+sectionId+'\')">▼</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="sectionBody" id="'+sectionId+'">'+
+      available.map(x=>'<div class="output"><b>'+escapeHtml(x[0])+'</b><span class="name">'+escapeHtml(x[1])+'</span><button class="copyBtn" data-copy="'+encodeURIComponent(x[1])+'" onclick="copySingle(this)">Copy</button></div>').join("")+
+    '</div>'+
+  '</div>';
+}).join("");
+
+$("status").textContent="Names generated. Copy any name or section to copy it.";
+}
+function toggleSection(id){
+ const body=$(id), btn=$(id+"_btn");
+ if(!body) return;
+ const collapsed=body.classList.toggle("collapsed");
+ if(btn) btn.textContent=collapsed?"▶":"▼";
+}
+
+async function copySingle(btn){
+ const text=decodeURIComponent(btn.dataset.copy);
+ try{await navigator.clipboard.writeText(text);}
+ catch(e){
+   const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+   document.body.appendChild(ta);ta.focus();ta.select();document.execCommand("copy");ta.remove();
+ }
+ const old=btn.textContent;btn.textContent="✓ Copied";btn.style.background="#dcfae6";btn.style.color="#067647";
+ $("status").textContent="✓ Name copied.";
+ setTimeout(()=>{btn.textContent=old;btn.style.background="";btn.style.color="";},1200);
+}
+
+async function copySection(btn){
+ const text=decodeURIComponent(btn.dataset.copy);
+ try{await navigator.clipboard.writeText(text);}
+ catch(e){
+   const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+   document.body.appendChild(ta);ta.focus();ta.select();document.execCommand("copy");ta.remove();
+ }
+ const old=btn.textContent;btn.textContent="✓ Copied";btn.style.background="#dcfae6";btn.style.color="#067647";
+ $("status").textContent="✓ Section copied.";
+ setTimeout(()=>{btn.textContent=old;btn.style.background="";btn.style.color="";},1200);
+}
+
+async function copyAll(){
+ if(!current){$("status").textContent="Generate names first.";return;}
+ const text=current.names.map(x=>x[1]).join("\n");
+ try{await navigator.clipboard.writeText(text);}
+ catch(e){
+   const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+   document.body.appendChild(ta);ta.focus();ta.select();document.execCommand("copy");ta.remove();
+ }
+ $("status").textContent="✓ All generated names copied.";
+}
+
+
+function escapeHtml(s){
+  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+
+function clearForm(){$("brand").value="";$("campaign").value="";$("prt").value="";$("ab").value="No";$("rem").value="No";current=null;$("meta").innerHTML="";$("outputs").textContent="Enter details and click Generate Names.";$("status").textContent=""}
+</script>
+</body>
+</html>
